@@ -1,0 +1,28 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+pandas = "*"
+seaborn = "*"
+jupyter = "*"
+jupyterlab = "*"
+sklearn = "*"
+langdetect = "*"
+readability = "*"
+textstat = "*"
+tqdm = "*"
+nltk = "*"
+lexical-diversity = "*"
+lexicalrichness = "*"
+textblob = "*"
+pronouncing = "*"
+jsonschema = "==3.0.2"
+pandoc = "*"
+nbconvert = "*"
+
+[requires]
+python_version = "3"
