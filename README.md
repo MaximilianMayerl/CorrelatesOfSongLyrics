@@ -10,4 +10,8 @@ For full feature extraction, put `wiktionary_english.json` into `./data`.
 
 ## Analysis
 
-The analysis described in our paper can be found in the files `lyrics_analyse_full_feature_importance.ipynb` and `STATS_5_Genres.Rmd`. `lyrics_analyse_full_feature_importance.ipynb` contains the code for _Experiment 1_ described in the paper, while `STATS_5_Genres.Rmd` contains the code for _Experiment 2_.
+The analysis described in our paper can be found in the files `lyrics_analyse_full_feature_importance.ipynb` and `STATS_5_Genres.Rmd`. 
+
+`lyrics_analyse_full_feature_importance.ipynb` contains the code for _Experiment 1_ described in the paper. Change the value of `FULL_DATASET_PATH` defined towards the top of the notebook to the path of the lyrics dataset file on your machine before you run it.
+
+`STATS_5_Genres.Rmd` contains the code for _Experiment 2_. As this code needs an intermediate dataset, please generate this first using  `get_features_distict.ipynb`. As before, please change the value of `FULL_DATASET_PATH` to the path on your machine.
