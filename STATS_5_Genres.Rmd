@@ -1,7 +1,8 @@
 ---
-title: "STATS_5:Genres"
+title: "STATS_5:Genres+2popularity"
 output: html_document
 ---
+
 
 ```{r import_data}
 library(readr)
@@ -9,11 +10,13 @@ features <- read_csv("features_distinct.csv")
 View(features)
 ```
 
+
 ```{r remove_duplicates}
 library(dplyr)
 features1 <- features %>% distinct_at(vars(-ID, -Popularity), .keep_all = TRUE)  # for the match consider all features + year + genre
 print("DONE")
 ```
+
 
 ```{r drop_rows_with_NaN}
 features2 <- na.omit(features1)
@@ -21,21 +24,22 @@ View(features2)
 print("DONE")
 ```
 
+
 ```{r inspect}
 features2$structure_chorus_repetitions
 colnames(features2)
 ```
 
-## -----------------------------------------------------------------------------------------------------------------------------------------------------------
 
-## ANALYSIS FOR 5 GENRES
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                      ANALYSIS FOR 5 GENRES
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 ```{r subset+downsample(acrossGenre):5}
-#############################
-#      SELECT SUB-SET       #
-#############################
 library(ggplot2)
 library(dplyr)
 library(rstatix)
@@ -44,6 +48,7 @@ year_selection <- seq(1991, 2020, by=1)
 sub_set_all <- features2[which(features2$Date %in% year_selection),]
 hist(sub_set_all$Date)
 hist(sub_set_all$Popularity)
+hist(sub_set_all$lfm_playcount)
 
 # eval genres #
 unique(sub_set_all[c("Genre")]) # rap, pop, rock, r-b, country
@@ -63,18 +68,22 @@ set.seed(27)
 down_sub_set_all5 <- downsample(down_sub_set_all5, cat_col = "Date2")
 hist(down_sub_set_all5$Date)
 hist(down_sub_set_all5$Popularity)
+hist(down_sub_set_all5$lfm_playcount)
 all_genres <- down_sub_set_all5$Genre
 ggplot(data.frame(all_genres), aes(x=all_genres)) + geom_bar()
 ```
 
+
 ```{r count}
-samples_genre <- which(all_genres == "rap")
+samples_genre <- which(all_genres == "pop")
 length(samples_genre)
 ```
+
 
 ```{r get_subSet}
 write.csv(down_sub_set_all5, "5Genres_SubSet.csv", row.names = TRUE)
 ```
+
 
 ```{r multiple_regression_date_(initial_model)}
 library(lm.beta)
@@ -84,9 +93,6 @@ library(ggplot2)
 library(usdm)
 library(dplyr)
 
-#############################
-#      FIT LINEAR MODEL     #
-#############################
 # Fit model through lm(outcome ~ predictor)
 sub_set5 <- subset(down_sub_set_all5, select=-c(ID, Date2)) # drop not used variables
 sub_set5[,which(!names(sub_set5) %in% c("Date", "Genre"))] <- scale(sub_set5[,which(!names(sub_set5) %in% c("Date", "Genre"))]) # Z-score normalisation for the IV
@@ -100,20 +106,20 @@ for (var in colnames(sub_set5)){
   }
 }
 
-# drop features with "LIWC" (they are creating lot of noise...)
-sub_set5B <- sub_set5A[, -grep("LIWC", colnames(sub_set5A))]
-
+# drop all emotion-related features 
+todrop <- c("AFINN", "BingLiu", "MPQA", "NRCAffect", "NRCEmotion", "NRCExpanded", "NRCHashtag", "Sentiment140", "SentiWordNet", "LabMT", "Negation_count", "six_letter_words", "LIWC")
+sub_set5Ab <- sub_set5A[, -grep(paste(todrop, collapse="|"), colnames(sub_set5A))]
+# Add emotion-related features from "LIWC"
+final_features <- c(colnames(sub_set5Ab), c("LIWC_anger", "LIWC_anx", "LIWC_sad", "LIWC_negemo", "LIWC_posemo"))
+sub_set5B <- sub_set5A[,c(final_features)]
 
 lm.model5 <- lm(Date ~. -Genre, data=sub_set5B)
 summary(lm.model5)
 ```
 
+
 ```{r fix_Collinearity}
-#############################
-#        COLLINEARITY       # 
-#############################
-# We check this as first step for multiple regression (skip for linear regression)
-# When the variance inflation factor (VIF) is above 10, then there exists multicollinearity (https://www.rdocumentation.org/packages/usdm/versions/1.1-18/topics/vif)
+# We consider features with a variance inflation factor (VIF) below 5 to prevent multicollinearity
 sub_set5B <- subset(sub_set5B, select=-c(lexical_punctuation_count, lexical_hapax_legomenon_ratio, structure_number_of_verses, Genre)) # Remove variables that return NA + categorical
 
 vif.1 <- usdm::vif(as.data.frame(sub_set5B))
@@ -133,17 +139,14 @@ vif.2
 new_sub_set5 <- sub_set5B
 ```
 
-```{r remove_outliers}
-# multicollinear outliyers
-new_sub_set5$row_index <- 1:nrow(new_sub_set5)
-NO_outliers <- new_sub_set5 %>% group_by(Date) %>% mahalanobis_distance() %>% filter(is.outlier == FALSE) %>% as.data.frame()
-sub_set_all5 <- new_sub_set5[which(new_sub_set5$row_index %in% NO_outliers$row_index),]
-print("DONE")
-```
+
 
 ```{r fix_Kooc's_distance}
 ##  DROP FEATURES WITH COOK'S DISTANCE > 0.5  ##
+
+sub_set_all5 <- new_sub_set5
 new_sub_set5B <- sub_set_all5
+
 for (feature in colnames(sub_set_all5)) {
   #if (feature != "Date"){
   if (feature != "Date" & feature != "Popularity"){
@@ -158,26 +161,32 @@ for (feature in colnames(sub_set_all5)) {
 print("DONE")
 ```
 
+
 ```{r get_final_data}
 library(nlme)
 library(ggplot2)
 # Get filtered data.frame with genre information
 sub_set5$row_index <- 1:nrow(sub_set5)
+sub_set_all5$row_index <- 1:nrow(sub_set_all5)
 genr_col <- sub_set5[which(sub_set5$row_index %in% sub_set_all5$row_index),]
-sel_Data5 <- cbind(sub_set_all5, Genre=genr_col$Genre)
+sel_Data5 <- cbind(new_sub_set5B, Genre=genr_col$Genre)
 # run initial model
-lm.model5.0 <- lm(Date ~ . -Genre -row_index, data=sel_Data5)
+lm.model5.0 <- lm(Date ~ . -Genre, data=sel_Data5)
 plot(lm.model5.0)
 ```
 
-In order to investigate whether there is a a relationship between Popularity and Genre, as well as the interaction between Popularity:Date and Genre, we start by performing multiple logistic regression considering genre as Dependent Variable and Popularity and Popularity:Date as predictors.
+
+
+In order to investigate whether there is a a relationship between Popularity and Genre, as well as the interaction between Popularity:Date and Genre,
+we start by performing multiple logistic regression considering genre as Dependent Variable and Popularity and Popularity:Date as predictors.
 
 ```{r multiple_logistic_regression}
 library(mlogit)
 library(car)
 library(effects)
 library(multcomp)
-Final_Data5 <- subset(sel_Data5, select=-c(row_index)) 
+#Final_Data5 <- subset(sel_Data5, select=-c(row_index)) 
+Final_Data5 <- sel_Data5
 is.factor(Final_Data5$Genre)
 
 Final_Data5B <- mlogit.data(Final_Data5, choice ="Genre", shape = "wide")
@@ -187,12 +196,26 @@ exp(mlogit.model5$coefficients)
 exp(confint(mlogit.model5))
 ```
 
-To investigate the relevant features to to predict changes in lyrics over time, multiple linear regression (for each genre individually) is carried out considering year as dependent variable. Since popularity showed to vary across genres, both the lyrics features individually as well as their interaction with popularity will be investigated. Each model was optimised following backwards selection.
+
+We perform the same analysis considering playcount instead of popularity.
+
+```{r multiple_logistic_regression_playcount}
+mlogit.model5.playcount <- mlogit(Genre ~ 1 | Date*lfm_playcount, data=Final_Data5B, reflevel = "rap")
+summary(mlogit.model5.playcount)
+exp(mlogit.model5.playcount$coefficients)
+exp(confint(mlogit.model5.playcount))
+```
+
+
+To investigate the relevant features to predict changes in lyrics over time, multiple linear regression (for each genre individually) is carried out considering year as dependent variable. Since popularity showed to vary across genres, both the lyrics features individually as well as their interaction with popularity will be investigated. 
+Each model was optimised following backwards selection.
+
 
 ```{r descriptive}
 library(psych)
 describeBy(Final_Data5, Final_Data5$Genre)
 ```
+
 
 ```{r linear_models_standard}
 # select genre
@@ -215,6 +238,11 @@ lm.country5 <- lm(Date ~ ., data=subset_country5)
 print("DONE")
 ```
 
+```{r explore_features}
+colnames(Final_Data5)
+```
+
+
 ```{r linear_models_withinGenre}
 library(stringr)
 sel.model.rap5 <- step(lm.rap5, direction = "backward", test = "F")
@@ -222,57 +250,74 @@ toselect.x.rap5 <- summary(sel.model.rap5)$coeff[-1,4] < 1 # Get all predictors 
 relevant.x.rap5 <- names(toselect.x.rap5)[toselect.x.rap5 == TRUE]
 interaction.formula.rap5 <- as.formula(paste("Date ~", paste(relevant.x.rap5, collapse= "+Popularity*")))
 interaction.model.rap5 <- lm(formula=interaction.formula.rap5, data=subset_rap5)
+interaction_lfm.formula.rap5 <- as.formula(paste("Date ~", paste(relevant.x.rap5, collapse= "+lfm_playcount*")))
+interaction_lfm.model.rap5 <- lm(formula=interaction_lfm.formula.rap5, data=subset_rap5)
 
 sel.model.rock5 <- step(lm.rock5, direction = "backward", test = "F")
 toselect.x.rock5 <- summary(sel.model.rock5)$coeff[-1,4] < 1 
 relevant.x.rock5 <- names(toselect.x.rock5)[toselect.x.rock5 == TRUE] 
 interaction.formula.rock5 <- as.formula(paste("Date ~", paste(relevant.x.rock5, collapse= "+Popularity*")))
 interaction.model.rock5 <- lm(formula=interaction.formula.rock5, data=subset_rock5)
+interaction_lfm.formula.rock5 <- as.formula(paste("Date ~", paste(relevant.x.rock5, collapse= "+lfm_playcount*")))
+interaction_lfm.model.rock5 <- lm(formula=interaction_lfm.formula.rock5, data=subset_rock5)
 
 sel.model.pop5 <- step(lm.pop5, direction = "backward", test = "F")
 toselect.x.pop5 <- summary(sel.model.pop5)$coeff[-1,4] < 1
 relevant.x.pop5 <- names(toselect.x.pop5)[toselect.x.pop5 == TRUE] 
 interaction.formula.pop5 <- as.formula(paste("Date ~", paste(relevant.x.pop5, collapse= "+Popularity*")))
 interaction.model.pop5 <- lm(formula=interaction.formula.pop5, data=subset_pop5)
+interaction_lfm.formula.pop5 <- as.formula(paste("Date ~", paste(relevant.x.pop5, collapse= "+lfm_playcount*")))
+interaction_lfm.model.pop5 <- lm(formula=interaction_lfm.formula.pop5, data=subset_pop5)
 
 sel.model.rb5 <- step(lm.rb5, direction = "backward", test = "F")
 toselect.x.rb5 <- summary(sel.model.rb5)$coeff[-1,4] < 1
 relevant.x.rb5 <- names(toselect.x.rb5)[toselect.x.rb5 == TRUE] 
 interaction.formula.rb5 <- as.formula(paste("Date ~", paste(relevant.x.rb5, collapse= "+Popularity*")))
 interaction.model.rb5 <- lm(formula=interaction.formula.rb5, data=subset_rb5)
+interaction_lfm.formula.rb5 <- as.formula(paste("Date ~", paste(relevant.x.rb5, collapse= "+lfm_playcount*")))
+interaction_lfm.model.rb5 <- lm(formula=interaction_lfm.formula.rb5, data=subset_rb5)
 
 sel.model.country5 <- step(lm.country5, direction = "backward", test = "F")
 toselect.x.country5 <- summary(sel.model.country5)$coeff[-1,4] < 1
 relevant.x.country5 <- names(toselect.x.country5)[toselect.x.country5 == TRUE] 
 interaction.formula.country5 <- as.formula(paste("Date ~", paste(relevant.x.country5, collapse= "+Popularity*")))
 interaction.model.country5 <- lm(formula=interaction.formula.country5, data=subset_country5)
+interaction_lfm.formula.country5 <- as.formula(paste("Date ~", paste(relevant.x.country5, collapse= "+lfm_playcount*")))
+interaction_lfm.model.country5 <- lm(formula=interaction_lfm.formula.country5, data=subset_country5)
 
 print("DONE")
 ```
 
-We do consider the interaction with popularity only for rb since for the otehr genres the interaction does not improve the model significantly.
+
+We do not consider the interaction with popularity for any genre as it does not improve the model significantly (p<.01).
 
 ```{r final_models}
 # 3-factor anova (compariosn between: baseline, selected, and interaction models)
 anova(sel.model.rap5, interaction.model.rap5)
+anova(sel.model.rap5, interaction_lfm.model.rap5)
 anova(sel.model.rock5, interaction.model.rock5)
+anova(sel.model.rock5, interaction_lfm.model.rock5)
 anova(sel.model.pop5, interaction.model.pop5)
+anova(sel.model.pop5, interaction_lfm.model.pop5)
 anova(sel.model.rb5, interaction.model.rb5)
+anova(sel.model.rb5, interaction_lfm.model.rb5)
 anova(sel.model.country5, interaction.model.country5)
+anova(sel.model.country5, interaction_lfm.model.country5)
 
 # We select the best model for each genre
 plot(sel.model.rap5)
 plot(sel.model.rock5)
 plot(sel.model.pop5)
-plot(interaction.model.rb5)
+plot(sel.model.rb5)
 plot(sel.model.country5)
 
 summary(sel.model.rap5)
 summary(sel.model.pop5)
 summary(sel.model.rock5)
-summary(interaction.model.rb5)
+summary(sel.model.rb5)
 summary(sel.model.country5)
 ```
+
 
 ```{r check_relationships}
 library(ggplot2)
@@ -308,6 +353,7 @@ for (feature in relevant.x.country5) {
 }
 ```
 
-------------------------------------------------------------------------
 
-------------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------
