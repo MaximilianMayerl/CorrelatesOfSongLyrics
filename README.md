@@ -6,7 +6,7 @@ This repository holds the code used for _Correlates of Song Lyrics_, our project
 
 The directory `feature_extraction` holds the code we used to extract features from the lyrics crawled from genius.com. It can be used as a Python module and exposes a function `extract_and_add_features(song)` to extract the features for a given song.
 
-For full feature extraction, put `wiktionary_english.json` into `./data`.
+For full feature extraction, put `wiktionary_english.json` into `./data`. You can find the file [here](https://kaikki.org/dictionary/English/words.html) ([direct download](https://kaikki.org/dictionary/English/words/kaikki.org-dictionary-English-words.json)).
 
 ## Analysis
 
