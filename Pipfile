@@ -8,9 +8,8 @@ verify_ssl = true
 [packages]
 pandas = "*"
 seaborn = "*"
-jupyter = "*"
-jupyterlab = "*"
-sklearn = "*"
+numpy = "*"
+scikit-learn = "*"
 langdetect = "*"
 readability = "*"
 textstat = "*"
